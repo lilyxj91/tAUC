@@ -1,0 +1,101 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# tAUC
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of tAUC is to estimate the covariate-specific incident dynamic time-dependent AUC.
+
+## Installation
+
+You can install the development version of tAUC like so:
+
+``` r
+library(devtools)
+devtools::install_github("lilyxj91/tAUC",force = TRUE)
+```
+
+## Example
+
+```{r example}
+library(tAUC)
+```
+
+```{r}
+
+set.seed(1)
+t0 = c(1.8, 3.6, 6.9) #day 1
+head(simdata)
+
+```
+
+```{r}
+Y0<-simdata$Y
+C0<-simdata$delta
+M0<-simdata$M
+VXS<-simdata[c("xd","xc")]
+datij<-data_crossing(Y0,C0,M0,VXS)
+print(dim(datij))
+YK = datij$yk
+XS<-cbind(int = 1,
+          t1 = YK^(-2),
+          t2 = YK^(-1),
+          t3 = YK^(-0.5),
+          t4 = log(YK),
+          t5 = YK^(0.5),
+          t6 = YK,
+          t7 = YK^(2),
+          xd10 = ifelse(datij$xdk==1&datij$xdj==0,1,0),
+          xd01 = ifelse(datij$xdk==0&datij$xdj==1,1,0),
+          xd11 = ifelse(datij$xdk==1&datij$xdj==1,1,0),
+          xci = datij$xck,
+          xcj = datij$xcj)
+YS<-datij$Ikj
+m<-fastglm::fastglm(XS,YS,family=binomial(link="logit"),maxit=10000L)
+beta.hat<-m$coefficients
+beta.hat.info<-c(m$converged,m$iter)
+```
+
+```{r}
+ordic=datij$k-1
+ordjc=datij$j-1
+L=cov_cal_long(beta.hat,M0,YS,t(XS),ordic,ordjc) #1 min
+V=solve(L$sigma1)%*%(L$sigma2)%*%solve(L$sigma1)
+cov=se.cal(beta.hat,V,t0,nf=7)
+```
+
+```{r}
+select=c(9:length(beta.hat))
+se.store = diag(V)[select]
+for(i in 1:length(select)){
+  se <- sqrt(max(0.00000001,diag(V)[select[i]]))
+  se.store[i] <- se
+}
+beta = beta.hat[select]
+wald = beta/se.store
+pvalue = 2*(1-pnorm(abs(wald)))
+table<-round(as.matrix(cbind(
+  beta,
+  se.store,
+  wald,
+  pvalue)),3)
+colnames(table)<-c("Estimate","SE","Wald","P-value")
+table[,4]<-ifelse(table[,4]<0.001,"<0.001",table[,4])
+table
+```
+
+
