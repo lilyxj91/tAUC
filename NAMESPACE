@@ -1,0 +1,8 @@
+useDynLib(tAUC, .registration=TRUE)
+importFrom(Rcpp, evalCpp)
+exportPattern("^[[:alpha:]]+")
+export(data_crossing)
+export(se.cal)
+import(dplyr)
+import(tidyr)
+import(fastglm)
